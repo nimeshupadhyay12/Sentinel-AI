@@ -1,0 +1,127 @@
+# ==========================================
+# Operating System & IDE Files
+# ==========================================
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# VS Code & JetBrains
+.vscode/
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+.idea/
+*.sublime-workspace
+*.sublime-project
+
+# ==========================================
+# Python & Backend Artifacts
+# ==========================================
+backend/venv/
+venv/
+ENV/
+env/
+.venv/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Pytest / Coverage / Linters
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# Environment Variables & Local Secrets (NEVER COMMIT SENSITIVE KEYS)
+backend/.env
+.env
+.env.*
+!.env.example
+
+# Database & SQLite files
+*.sqlite
+*.sqlite3
+*.db
+
+# Scikit-learn / Model Cache / Pickles
+*.pkl
+*.pickle
+*.joblib
+
+# ==========================================
+# Node.js & React Frontend Artifacts
+# ==========================================
+frontend/node_modules/
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Vite build output
+frontend/dist/
+frontend/dist-ssr/
+dist/
+dist-ssr/
+
+# Local env files
+frontend/.env.local
+frontend/.env.development.local
+frontend/.env.test.local
+frontend/.env.production.local
+
+Readme
+
+
+# Logs
+logs/
+*.log
+# Large local CERT archives, derived features, and generated experiment outputs
+/research/data/raw/
+/research/data/cert_r4.2_features.csv
+/research/data/cert_r4.2_features.metadata.json
+/research/results/*
+!/research/results/.gitkeep
+
+# Local verification runtime and database
+.test-postgres/
+.pytest_cache/
+*.joblib
+
+# Curated aggregate example outputs supplied with the project
+!/research/results/cert-r4.2-enhanced/
+/research/results/cert-r4.2-enhanced/*
+!/research/results/cert-r4.2-enhanced/detection-summary.csv
+!/research/results/cert-r4.2-enhanced/adaptive-summary.csv
+!/research/results/cert-r4.2-enhanced/ablation-summary.csv
+!/research/results/cert-r4.2-enhanced/research-report.md
+!/research/results/cert-r4.2-enhanced/research-results.png
+!/research/results/cert-r4.2-enhanced/adaptive-metrics.png
+!/research/results/cert-r4.2-enhanced/manifest.json
+!/research/results/cert-r4.2-enhanced/paired-comparisons.csv
+!/research/results/cert-r4.2-enhanced/validation-selection.csv
+!/research/results/cert-r4.2-enhanced/precision-recall.png
+!/research/results/cert-r4.2-enhanced/detection-runs.csv
+!/research/results/cert-r4.2-enhanced/adaptive-runs.csv

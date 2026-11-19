@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="320" viewBox="0 0 1280 320" role="img" aria-labelledby="title desc">
+<title id="title">SentinelAI — Adaptive Insider Threat Detection</title><desc id="desc">Explainable detection, adaptive response, and cybersecurity research.</desc>
+<defs><linearGradient id="bg" x2="1" y2="1"><stop stop-color="#070d1d"/><stop offset="1" stop-color="#14213e"/></linearGradient><linearGradient id="accent"><stop stop-color="#3b82f6"/><stop offset="1" stop-color="#22d3ee"/></linearGradient><pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M40 0H0V40" fill="none" stroke="#60a5fa" stroke-opacity=".08"/></pattern></defs>
+<rect width="1280" height="320" rx="20" fill="url(#bg)"/><rect width="1280" height="320" rx="20" fill="url(#grid)"/>
+<path d="M125 75l64 24v55c0 48-33 80-64 95-31-15-64-47-64-95V99z" fill="#102c50" stroke="url(#accent)" stroke-width="3"/>
+<path d="M94 159l21 22 44-50" fill="none" stroke="#22d3ee" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="235" y="105" font-family="Segoe UI,Arial,sans-serif" font-size="15" letter-spacing="4" fill="#67e8f9">CYBERSECURITY RESEARCH PLATFORM</text>
+<text x="230" y="178" font-family="Segoe UI,Arial,sans-serif" font-size="66" font-weight="700" fill="#f8fafc">SENTINEL<tspan fill="#60a5fa">.AI</tspan></text>
+<text x="235" y="220" font-family="Segoe UI,Arial,sans-serif" font-size="24" fill="#cbd5e1">Adaptive Insider Threat Detection</text>
+<text x="235" y="265" font-family="Segoe UI,Arial,sans-serif" font-size="16" fill="#94a3b8">EXPLAINABLE DETECTION   /   ADAPTIVE RESPONSE   /   REPRODUCIBLE RESEARCH</text>
+<path d="M1000 160h30l16-37 24 80 22-57 17 14h65" fill="none" stroke="url(#accent)" stroke-width="3" opacity=".65"/>
+</svg>

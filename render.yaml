@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: sentinel-ai
+    runtime: docker
+    plan: free
+    region: oregon
+    healthCheckPath: /health
+    envVars:
+      - key: PORT
+        value: 8000
+      - key: SECRET_KEY
+        generateValue: true
+      # Configure this secret in the Render dashboard before first deployment.
+      - key: SENTINEL_BOOTSTRAP_ADMIN_PASSWORD
+        sync: false
+      # Optional: configure an analyst account separately.
+      - key: SENTINEL_BOOTSTRAP_ANALYST_PASSWORD
+        sync: false
+      # Optional: configure a standard demonstration user separately.
+      - key: SENTINEL_BOOTSTRAP_USER_PASSWORD
+        sync: false
