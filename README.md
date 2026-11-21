@@ -176,4 +176,4 @@ Use synthetic or authorised data, configure strong secrets, and review deploymen
 
 Suggestions, bug fixes, and reproducibility improvements are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) before submitting a change.
 
-No reuse license has been selected. Contact the repository owner before redistributing or reusing the code.
+Released under the [MIT License](LICENSE).
