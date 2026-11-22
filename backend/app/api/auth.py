@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.security import verify_password, create_access_token, get_password_hash
@@ -10,9 +11,10 @@ router = APIRouter(prefix="/api/auth", tags=["Authentication"])
 
 @router.post("/register", response_model=UserOut)
 def register(user_in: UserCreate, db: Session = Depends(get_db)):
-    existing = db.query(User).filter(User.username == user_in.username).first()
-    if existing:
+    if db.query(User).filter(User.username == user_in.username).first():
         raise HTTPException(status_code=400, detail="Username already exists")
+    if db.query(User).filter(User.email == user_in.email).first():
+        raise HTTPException(status_code=400, detail="Email already registered")
     user = User(
         username=user_in.username,
         email=user_in.email,
@@ -20,7 +22,14 @@ def register(user_in: UserCreate, db: Session = Depends(get_db)):
         role="User"
     )
     db.add(user)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=400,
+            detail="Username or email already registered"
+        ) from None
     db.refresh(user)
     return user
 

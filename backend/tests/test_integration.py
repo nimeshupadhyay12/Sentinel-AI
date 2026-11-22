@@ -110,3 +110,38 @@ def test_postgresql_legacy_upgrade():
         legacy.dispose()
         with engine.begin() as conn:
             conn.execute(text(f'DROP SCHEMA {schema} CASCADE'))
+
+
+def test_registration_rejects_duplicate_email():
+    with TestClient(app) as client:
+        first = client.post('/api/auth/register', json={
+            'username': 'duplicate-email-one',
+            'email': 'duplicate-email@example.com',
+            'password': 'TestOnly-Duplicate-Pass-2026!',
+        })
+        assert first.status_code == 200, first.text
+
+        second = client.post('/api/auth/register', json={
+            'username': 'duplicate-email-two',
+            'email': 'duplicate-email@example.com',
+            'password': 'TestOnly-Duplicate-Pass-2026!',
+        })
+        assert second.status_code == 400
+        assert 'email' in second.json()['detail'].lower()
+
+
+def test_registration_rejects_weak_credentials():
+    with TestClient(app) as client:
+        short_password = client.post('/api/auth/register', json={
+            'username': 'short-password-user',
+            'email': 'short-password@example.com',
+            'password': 'short',
+        })
+        assert short_password.status_code == 422
+
+        short_username = client.post('/api/auth/register', json={
+            'username': 'ab',
+            'email': 'short-username@example.com',
+            'password': 'TestOnly-Registration-Pass-2026!',
+        })
+        assert short_username.status_code == 422
