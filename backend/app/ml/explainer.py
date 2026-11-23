@@ -120,7 +120,7 @@ class RiskScoreExplainer:
         baseline = float(if_v[empty] + oc_v[empty])
         by_feature = {f: float(if_phi[i] + oc_phi[i] + rule_by_feature[f]) for i, f in enumerate(FEATURE_ORDER)}
         reconstructed = baseline + sum(by_feature.values())
-        r = lambda v: round(float(v), 3)  # noqa: E731
+        r = lambda v: round(float(v), 3)
         return {
             "method": ("exact interventional Shapley values over all 128 feature coalitions "
                        f"({len(self.background)}-row normal background) for the IF and OCSVM points; "

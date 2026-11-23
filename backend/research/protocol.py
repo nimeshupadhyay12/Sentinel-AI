@@ -4,7 +4,7 @@ import pandas as pd
 from sklearn.ensemble import IsolationForest
 from sklearn.svm import OneClassSVM
 from sklearn.preprocessing import StandardScaler
-from app.services.attacker_adaptation import AttackerAdaptationEngine, RESPONSES
+from app.services.attacker_adaptation import AttackerAdaptationEngine
 from app.ml.game_engine import AdaptiveStackelbergGameEngine
 
 VARIANTS = ('Baseline', '+ AAS', '+ AAS + RES', 'Full SentinelAI')

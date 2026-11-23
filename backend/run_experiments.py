@@ -8,9 +8,7 @@ import argparse
 import hashlib
 import json
 import platform
-import subprocess
 from pathlib import Path
-import sys
 from datetime import datetime, timezone
 import numpy as np
 import pandas as pd

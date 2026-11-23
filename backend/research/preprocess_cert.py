@@ -2,8 +2,6 @@
 Labels are active insider windows from the official answer key (not model inputs).
 """
 import argparse
-import hashlib
-import io
 import json
 from pathlib import Path
 import tarfile

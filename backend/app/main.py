@@ -6,7 +6,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-from app.core.database import engine, Base, SessionLocal
+from app.core.database import engine, SessionLocal
 from app.core.config import settings
 from app.core.security import get_password_hash
 from app.models.models import User, ActivityLog

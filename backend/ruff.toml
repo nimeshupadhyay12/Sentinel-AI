@@ -1,0 +1,10 @@
+# Lint configuration used by CI (`ruff check .` from backend/).
+# Deliberately small rule set: pyflakes (real bugs such as undefined names and
+# unused imports) plus pycodestyle errors/warnings. Long lines and the compact
+# one-line statements used in the research scripts are allowed.
+target-version = "py311"
+extend-exclude = [".venv", "venv"]
+
+[lint]
+select = ["E", "F", "W"]
+ignore = ["E501", "E701", "E702", "E731"]
