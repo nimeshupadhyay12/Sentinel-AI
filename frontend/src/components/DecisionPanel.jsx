@@ -65,10 +65,10 @@ export default function DecisionPanel({ action = 'ALLOW', riskScore = 0 }) {
           <span className="text-[10px] font-mono tracking-widest uppercase text-gray-400">
             STRATEGIC RESPONSE ORCHESTRATION (RASRO)
           </span>
-          <div className="text-xs text-gray-500 font-mono">Adaptive Stackelberg Game Engine</div>
+          <div className="text-xs text-gray-500 font-mono">Pure-strategy Stackelberg game · hand-set payoffs</div>
         </div>
         <div className="px-2 py-0.5 rounded text-[10px] font-mono border border-gray-700 bg-sentinel-950/60 text-gray-300">
-          CLOSED-LOOP
+          RECOMMENDATION ONLY
         </div>
       </div>
 

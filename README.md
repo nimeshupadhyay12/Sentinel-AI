@@ -5,7 +5,7 @@
 <p align="center"><strong>Understand suspicious behaviour. Explain the risk. Explore an adaptive response.</strong></p>
 
 <p align="center">
-  <a href="https://github.com/nimeshupadhyay12/Sentinel-AI/actions/workflows/verify.yml"><img src="https://github.com/nimeshupadhyay12/Sentinel-AI/actions/workflows/verify.yml/badge.svg" alt="Application verification"></a>
+  <a href="https://github.com/nimeshupadhyay12/Sentinel-AI/actions/workflows/verify.yml"><img src="https://github.com/nimeshupadhyay12/Sentinel-AI/actions/workflows/verify.yml/badge.svg" alt="CI"></a>
   <img src="https://img.shields.io/badge/Python-3.11-3776AB?logo=python&amp;logoColor=white" alt="Python 3.11">
   <img src="https://img.shields.io/badge/FastAPI-API-009688?logo=fastapi&amp;logoColor=white" alt="FastAPI">
   <img src="https://img.shields.io/badge/React-18-61DAFB?logo=react&amp;logoColor=black" alt="React 18">
@@ -26,12 +26,13 @@ SentinelAI is a full-stack cybersecurity research project that brings together a
 
 | Capability | What it does |
 |---|---|
-| **Explainable anomaly detection** | Scores activity with Isolation Forest and One-Class SVM, then displays SHAP feature attributions. |
-| **Adaptive threat simulation** | Models attacker behaviour across multiple turns and evaluates defender responses with a finite, pure-strategy Stackelberg game. |
-| **SOC dashboard** | Shows user activity, risk, alerts, incidents, and recent assessments in one interface. |
-| **Adaptation metrics** | Tracks Attacker Adaptation Score (AAS) and observational Response Effectiveness Score (RES). |
-| **Research workbench** | Provides chronological CERT r4.2 evaluation, model comparisons, ablations, tables, and plots. |
-| **Authenticated API** | Uses JWT authentication, role checks, and SQLAlchemy persistence with SQLite or PostgreSQL. |
+| **Explainable anomaly detection** | Scores activity with Isolation Forest and One-Class SVM and breaks **every point** of the 0-100 risk score down per feature: exact Shapley values for both models plus the rule points that fired. TreeSHAP on the Isolation Forest is also shown. |
+| **Adaptive response recommender** | A finite, pure-strategy Stackelberg game with hand-set payoffs recommends ALLOW / MONITOR / STEP_UP_AUTH / RESTRICT / REVOKE. Recommendations only; nothing is enforced. |
+| **Adaptive threat simulator** | A scripted attacker changes behaviour after each recommended response, so the loop can be studied over several turns. |
+| **SOC dashboard** | User activity, risk, alerts, incidents, score breakdown and recent assessments; standard users only see their own activity. |
+| **Adaptation metrics** | Attacker Adaptation Score (AAS) and observational Response Effectiveness Score (RES). |
+| **Research workbench** | Chronological 60/20/20 CERT r4.2 evaluation, model comparisons, ablations, paired statistics, tables and plots. |
+| **Secured API** | JWT access tokens with server-side revocation, rotating httpOnly refresh cookies, Admin/Analyst/User roles, login throttling, and an Ed25519-signed, verifiable audit chain. |
 
 ## Screenshots
 
@@ -60,24 +61,32 @@ SentinelAI is a full-stack cybersecurity research project that brings together a
 
 </details>
 
-Some supplied captures and diagrams show earlier terminology. The implemented game is pure-strategy, endpoint enforcement is simulated, and the cryptography modules are demonstrations rather than post-quantum implementations.
+Some supplied captures and diagrams predate the current version and show earlier terminology (for example "PQC" or "ML-DSA"). The implemented game is pure-strategy with hand-set payoffs, enforcement is simulated, and the cryptography is classical (Ed25519 signatures, AES-GCM demo), not post-quantum.
 
 ## How it works
 
 ```mermaid
 flowchart LR
-    A[User activity] --> B[Feature pipeline]
-    B --> C[Anomaly models]
-    C --> D[SHAP and risk assessment]
-    D --> E[Adaptive game simulator]
-    E --> F[Recommendations and alerts]
-    F --> G[SOC dashboard and audit history]
-    H[CERT r4.2] --> I[Offline chronological evaluation]
-    I --> J[Research tables and plots]
-    J --> G
+    A[Activity event or telemetry vector] --> B[Feature pipeline: 7 features, scaler]
+    B --> C1[Isolation Forest: 0-40 pts]
+    B --> C2[One-Class SVM: 0-30 pts]
+    A --> C3[Rules: 0-30 pts]
+    C1 & C2 & C3 --> D[Risk score 0-100 + per-feature breakdown]
+    D --> E[Stackelberg recommender: pure strategy, hand-set payoffs]
+    E --> F[Alert at 50+, incident at 75+]
+    F --> G[Ed25519-signed audit chain]
+    F --> H[SOC dashboard]
+    I[CERT r4.2 user-days] --> J[Offline chronological evaluation]
+    J --> K[Research tables and plots] --> H
 ```
 
-The interactive application and offline experiments use different data paths. Simulator payoffs are explicit assumptions; RES does not establish causal effectiveness.
+**Risk score.** `risk = IF points (0-40) + OCSVM points (0-30) + rule points (0-30)`. Each model's decision value is mapped linearly onto its points range and clipped. The rules add 15 points for more than 300 MB transferred, 10 for 5 or more sensitive files, and 5 for activity before 06:00 or after 21:00. Both models are fitted on the benign rows of a synthetic baseline, because the live app has no real training data.
+
+**Explanation.** For the IF and OCSVM points, SentinelAI computes exact interventional Shapley values: it evaluates all 2^7 = 128 feature coalitions against a fixed 20-row background of normal sessions. That is the quantity SHAP's KernelExplainer estimates, computed exhaustively, so there is no sampling error (about 70 ms per event). Rule points go to the one feature each rule tests. The result satisfies `baseline + sum(per-feature points) = risk score`, where the baseline is what a typical normal session scores, and it is stored with every assessment and alert.
+
+**Recommendation.** For each of the 5 defender actions, the game finds the attacker's best response among 4 strategies (ties broken against the defender), then picks the action with the best defender utility. Payoffs are modelling assumptions, shifted by the current risk, AAS, RES and the previous defence. It is not a Bayesian or mixed-strategy game, and it is not fitted to data.
+
+The interactive application and the offline experiments use different data paths. RES is observational and does not establish causal effectiveness.
 
 ## Quick start
 
@@ -110,6 +119,35 @@ npm run dev
 
 Open **[the dashboard](http://localhost:3000)** and sign in with a configured account. Explore **[API documentation](http://127.0.0.1:8000/docs)** or the **[health endpoint](http://127.0.0.1:8000/health)**.
 
+Self-registration is off by default (`ALLOW_SELF_REGISTRATION=false`). The admin account creates other accounts with `POST /api/users/`.
+
+## API and roles
+
+All endpoints except `/health`, login, refresh, logout and the optional register endpoint need `Authorization: Bearer <access token>`. The role is read from the database on every request, so a demotion or deactivation applies immediately.
+
+| Method | Path | Who |
+|---|---|---|
+| POST | `/api/auth/login` | Anyone. Rate limited: account lockout plus per-IP budget |
+| POST | `/api/auth/refresh` | Holder of the httpOnly refresh cookie. Rotated on every use; reuse revokes the whole family |
+| POST | `/api/auth/logout` | Anyone. Denylists the access token's `jti` and revokes the refresh token |
+| POST | `/api/auth/register` | Anyone, only if `ALLOW_SELF_REGISTRATION=true`. Always creates a `User`; same 202 reply whether or not the account exists |
+| GET | `/api/auth/me` | Any signed-in user |
+| POST | `/api/activities/log` | Any signed-in user (records and scores their own event) |
+| GET | `/api/activities/recent` | User: own activity only. Analyst, Admin: everyone |
+| POST | `/api/activities/analyze` | Analyst, Admin |
+| GET | `/api/alerts/`, `/api/incidents/` | Analyst, Admin |
+| GET | `/api/analytics/dashboard-stats` | Analyst, Admin |
+| POST | `/api/analytics/simulate-threat` | Analyst, Admin |
+| POST | `/api/experiments/run-adaptive-ablation` | Analyst, Admin |
+| GET | `/api/research/results`, `/api/research/files/{name}` | Analyst, Admin |
+| GET | `/api/users/` | Analyst, Admin |
+| POST | `/api/users/` | Admin (create an account with a role) |
+| PATCH | `/api/users/{id}` | Admin (change role, activate or deactivate; ends that user's sessions) |
+| GET | `/api/audit/verify` | Admin. Re-checks every chain link and every Ed25519 signature |
+| GET | `/api/audit/public-key`, `/api/audit/logs` | Admin |
+
+**Token storage trade-off.** The 15-minute access token is kept in JavaScript memory only, not in `localStorage`. The 7-day refresh token is an httpOnly, `SameSite=Strict` cookie scoped to `/api/auth`, so injected script cannot read a long-lived credential. The SPA is served with a strict Content-Security-Policy (`script-src 'self'`, no inline scripts). An XSS bug could still act as the user while the page is open; that risk remains for any browser-held credential.
+
 For PostgreSQL, all environment options, Docker, deployment, and experiment commands, see the **[developer guide](docs/DEVELOPMENT.md)**.
 
 ## Technology
@@ -119,8 +157,8 @@ For PostgreSQL, all environment options, Docker, deployment, and experiment comm
 | Frontend | React 18 · Vite · Tailwind CSS · Recharts · Lucide |
 | Backend | Python · FastAPI · Uvicorn · Pydantic |
 | ML and explainability | scikit-learn · SHAP · NumPy · pandas · SciPy |
-| Storage and authentication | SQLAlchemy · SQLite / PostgreSQL · JWT · bcrypt |
-| Verification and packaging | pytest · HTTPX · GitHub Actions · Docker · Render blueprint |
+| Storage and security | SQLAlchemy · SQLite / PostgreSQL · JWT (python-jose) · bcrypt · Ed25519 (cryptography) |
+| Verification and packaging | pytest · ruff · GitHub Actions · Docker (non-root) · Render blueprint with PostgreSQL |
 
 ## Project structure
 
@@ -132,9 +170,9 @@ Sentinel-AI/
 ├── images/               # Project screenshots, diagrams, and banner
 ├── research/
 │   └── results/          # Selected supplied aggregate experiment outputs
-├── .github/workflows/    # Application verification and optional keep-alive
-├── Dockerfile            # Combined frontend + backend container
-└── render.yaml           # Deployment blueprint
+├── .github/workflows/    # CI (lint, tests, frontend build) and optional keep-alive
+├── Dockerfile            # Frontend + backend container, runs as non-root
+└── render.yaml           # Render blueprint: web service + PostgreSQL
 ```
 
 ## Verification
@@ -154,23 +192,43 @@ npm ci
 npm run build
 ```
 
-The included GitHub Actions workflow builds the frontend and runs backend tests against a disposable PostgreSQL service. See the workflow badge for its current result. The badge reflects GitHub Actions results for this repository; local validation does not imply a fresh deployment.
+The CI workflow runs `ruff check`, the backend tests against a disposable PostgreSQL 16 service (with the frontend built so the SPA tests run), and a standalone frontend build. Locally, without `SENTINEL_TEST_DATABASE_URL`, the PostgreSQL-only migration test is skipped.
 
 ## Research
 
-The project includes CERT r4.2 preprocessing and chronological train/validation/test evaluation, plus a separate synthetic adaptive-response simulator. Selected aggregate results supplied with the project are included so the research dashboard has example artifacts. Raw CERT data, user-level feature datasets, credentials, databases, and serialized models are excluded.
+The project includes CERT r4.2 preprocessing and a chronological 60/20/20 train/validation/test evaluation (split by date, so models never train on the future), plus a separate synthetic adaptive-response simulator. Selected aggregate results are committed so the research dashboard has artifacts. Raw CERT data, user-level feature datasets, credentials, databases and serialized models are excluded.
+
+Committed results of the enhanced protocol, mean of 5 seeds, from [`detection-summary.csv`](research/results/cert-r4.2-enhanced/detection-summary.csv). The test split has 61,473 user-days, of which 244 (0.40%) fall inside insider windows.
+
+| Model | ROC-AUC | Precision | Recall | F1 |
+|---|---:|---:|---:|---:|
+| Isolation Forest | 0.834 | 0.013 | 0.054 | 0.016 |
+| One-Class SVM | 0.632 | 0.014 | 0.045 | 0.021 |
+| Full SentinelAI (adaptive policy) | 0.799 | 0.011 | 0.102 | 0.020 |
+
+How to read this: the Isolation Forest ranks insider days above normal days well above chance (ROC-AUC 0.83), but at 0.40% prevalence only about 1 alert in 75-90 is a true insider day. The adaptive policy's differences from the baselines are not statistically significant (Holm-corrected paired sign-flip tests in [`paired-comparisons.csv`](research/results/cert-r4.2-enhanced/paired-comparisons.csv)). The enhanced protocol already includes a per-user baseline representation (`personalized_log1p`: each feature's deviation from that user's own training median), selected on validation data only.
+
+Reproduce (needs the CERT r4.2 archive and answer key, which are not redistributed here):
+
+```powershell
+cd backend
+python -m research.download_cert --output ../research/data/raw/r4.2.tar.bz2
+python -m research.preprocess_cert --archive ../research/data/raw/r4.2.tar.bz2 --answers ../research/data/raw/answers.tar.bz2 --output ../research/data/cert_r4.2_features.csv
+python run_experiments.py --dataset ../research/data/cert_r4.2_features.csv --output ../research/results/cert-r4.2-enhanced --protocol enhanced --seeds 0 1 2 3 4 --episodes 20 --turns 8
+```
+
+`python run_experiments.py --demo --output <dir>` runs the same pipeline on synthetic data as a smoke test. The synthetic data is easy to separate (both detectors reach ROC-AUC 1.000 on it), so those numbers say nothing about real-world performance.
 
 - [Research methods and reproduction](docs/DEVELOPMENT.md#research-reproduction)
-- [Supplied enhanced-protocol report](research/results/cert-r4.2-enhanced/research-report.md)
+- [Committed enhanced-protocol report](research/results/cert-r4.2-enhanced/research-report.md)
 - [Experiment provenance and limitations](research/results/cert-r4.2-enhanced/manifest.json)
-
-Absolute detection performance remains limited. Five seeds and exploratory follow-up do not establish statistical significance or consistent superiority over the baselines. Synthetic response results must not be interpreted as CERT outcomes.
+- [What changed in this version, and why](docs/IMPROVEMENTS.md)
 
 Dataset reference: Lindauer, Brian (2020). *Insider Threat Test Dataset*, Carnegie Mellon University. [Dataset DOI](https://doi.org/10.1184/R1/12841247.v1).
 
 ## Security and scope
 
-Use synthetic or authorised data, configure strong secrets, and review deployment settings before exposing the application. The `pqc_kem.py` demonstration uses AES-GCM and `pqc_dsa.py` uses Ed25519; they do **not** implement ML-KEM or ML-DSA. See the [implementation limitations](docs/DEVELOPMENT.md#security-and-implementation-limitations) and [security policy](SECURITY.md).
+Use synthetic or authorised data, configure strong secrets, and review deployment settings before exposing the application. `app/core/audit_signing.py` (formerly `pqc_dsa.py`) uses classical Ed25519 and `app/core/aesgcm_demo.py` (formerly `pqc_kem.py`) is an AES-GCM demo; neither implements ML-DSA, ML-KEM or anything post-quantum. Login throttling is in-process, so run a single worker or move it to a shared store. See the [implementation limitations](docs/DEVELOPMENT.md#security-and-implementation-limitations) and [security policy](SECURITY.md).
 
 ## Contributing and license
 

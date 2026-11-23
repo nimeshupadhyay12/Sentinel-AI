@@ -1,8 +1,25 @@
-"""Finite, pure-strategy adaptive Stackelberg game (not a Bayesian game).
+"""Finite, pure-strategy Stackelberg game used as a response recommender.
 
-Defender commits first; follower maximizes its utility for each commitment.
-Ties in follower utility use a pessimistic tie break (least defender utility).
-Utilities and success estimates are explicit modelling assumptions, not fitted CERT facts.
+What it is:
+* 5 defender actions x 4 attacker strategies, re-solved for every analysed
+  event. History enters only as inputs that shift the payoffs: the current
+  risk score, the adaptation score (AAS), the response-effectiveness score
+  (RES) and the previous defence. Nothing is learned across turns.
+* The defender (leader) commits to one pure action; for each action the
+  attacker (follower) picks its best-response strategy, with ties broken
+  pessimistically (least defender utility). The defender picks the action
+  whose induced best response gives it the highest utility. This is found by
+  enumerating the 5 x 4 table, not by solving for a mixed-strategy equilibrium.
+
+What it is not:
+* Not a Bayesian or mixed-strategy Stackelberg game, and not learned: the
+  payoff table (SUCCESS, DAMAGE, COST, ATTACK_COST and the preference and
+  urgency weights) is hand-set by the author as modelling assumptions, not
+  fitted to CERT or any other data. "Optimal" means optimal under these
+  assumed payoffs only.
+* No enforcement: the selected action is a recommendation that is stored and
+  displayed. Nothing revokes sessions or blocks endpoints; attacker reactions
+  exist only in the separate simulator (app/ml/adaptive_attacker.py).
 """
 import numpy as np
 from app.services.attacker_adaptation import AttackerAdaptationEngine, RESPONSES

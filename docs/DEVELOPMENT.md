@@ -56,8 +56,8 @@ The game engine is a finite, pure-strategy Stackelberg model: the defender commi
 ### Detection and explainability
 
 - Isolation Forest and One-Class SVM anomaly detectors.
-- Feature engineering and risk-score calculation.
-- SHAP-based feature-attribution visualisations.
+- Feature engineering and a 0-100 risk score = Isolation Forest points (0-40) + One-Class SVM points (0-30) + rule points (0-30); both models are fitted on benign baseline rows only.
+- Complete score breakdown: exact Shapley values (all 128 feature coalitions, 20-row normal background) for the IF and OCSVM points plus the fired rules, summing to the score; TreeSHAP for the Isolation Forest in model space.
 - Dashboard views for activity, alerts, incidents, and analysis history.
 
 ### Adaptive response research
@@ -73,8 +73,9 @@ AAS and RES are research metrics. RES is observational and does not, by itself, 
 ### SOC web application
 
 - React dashboard and interactive visualisations.
-- FastAPI REST API with JWT-based authentication.
-- Role checks for protected research and experiment endpoints.
+- FastAPI REST API: 15-minute JWT access tokens with a jti denylist on logout, rotating httpOnly refresh cookies with reuse detection, login lockout and per-IP throttling, non-enumerating registration.
+- Admin / Analyst / User roles enforced on every endpoint; standard users only see their own activity; admin-only user management.
+- Ed25519-signed audit chain with an admin-only verification endpoint (`GET /api/audit/verify`).
 - SQLAlchemy persistence with SQLite for local development and PostgreSQL support.
 - Read-only, allowlisted research-artifact endpoints.
 
@@ -281,7 +282,13 @@ Backend settings are loaded from environment variables and `backend/.env`.
 |---|---|
 | `SECRET_KEY` | Required signing key for JWT tokens. Generate a unique random value; never commit it. |
 | `ALGORITHM` | JWT signing algorithm; defaults to `HS256`. |
-| `ACCESS_TOKEN_EXPIRE_MINUTES` | JWT lifetime in minutes. |
+| `ACCESS_TOKEN_EXPIRE_MINUTES` | Access-token lifetime in minutes (default 15). |
+| `REFRESH_TOKEN_EXPIRE_DAYS` | Lifetime of the rotating httpOnly refresh cookie (default 7). |
+| `COOKIE_SECURE` | Mark the refresh cookie `Secure` (default `true`; browsers accept that on `http://localhost`). |
+| `ALLOW_SELF_REGISTRATION` | Enable `POST /api/auth/register` (default `false`; accounts are created by an admin). |
+| `LOGIN_MAX_FAILURES`, `LOGIN_LOCKOUT_MINUTES` | Per-account lockout after repeated failed logins (default 5 failures, 15 minutes). |
+| `LOGIN_IP_MAX_ATTEMPTS`, `LOGIN_IP_WINDOW_MINUTES` | Per-client-IP login attempt budget (default 30 per 5 minutes). |
+| `AUDIT_SIGNING_KEY` | Optional base64 32-byte Ed25519 seed for the audit chain; derived from `SECRET_KEY` with HKDF when unset. |
 | `DATABASE_URL` | SQLAlchemy connection URL. Defaults to local SQLite when omitted. |
 | `SENTINEL_BOOTSTRAP_ADMIN_PASSWORD` | Optional first-start password for the `admin` role account. |
 | `SENTINEL_BOOTSTRAP_ANALYST_PASSWORD` | Optional first-start password for the `analyst` role account. |
@@ -306,7 +313,7 @@ Alternatively, if the virtual environment is activated:
 python -m pytest tests -q
 ```
 
-The integration suite uses an isolated temporary SQLite database by default. To exercise PostgreSQL migration coverage, set `SENTINEL_TEST_DATABASE_URL` to a **disposable test database**. Never point tests at production data.
+Shared fixtures live in `tests/conftest.py`: the suite uses an isolated temporary SQLite database by default, and `test_security.py`, `test_audit.py` and `test_explainer.py` cover authentication/authorization, the signed audit chain and the risk-score breakdown. Lint with `ruff check .` from `backend/`. To exercise PostgreSQL migration coverage, set `SENTINEL_TEST_DATABASE_URL` to a **disposable test database**. Never point tests at production data.
 
 Frontend production build:
 
@@ -351,7 +358,7 @@ Raw datasets and model binaries are excluded from Git. Selected aggregate exampl
 
 ### Research interpretation
 
-- The Stackelberg game is a **pure-strategy** model, not a Bayesian game.
+- The Stackelberg game is a finite **pure-strategy** model (5 defender actions x 4 attacker strategies), solved by enumeration for each event. It is not a Bayesian or mixed-strategy game, it does not compute a mixed equilibrium, and nothing enforces the chosen action.
 - Payoffs, success probabilities, costs, and attacker preferences are simulator assumptions; they are not fitted from CERT.
 - CERT labels identify official insider activity windows, not necessarily individual malicious events.
 - Confidentiality/exfiltration variables are proxies because CERT does not provide sensitive-file labels.
