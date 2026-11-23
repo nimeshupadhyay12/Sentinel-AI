@@ -8,4 +8,4 @@ router = APIRouter(prefix="/api/incidents", tags=["Incidents"])
 
 @router.get("/")
 def get_incidents(db: Session = Depends(get_db), current_user=Depends(require_role(["Admin", "Analyst"]))):
-    return db.query(Incident).order_by(Incident.timestamp.desc()).limit(20).all()
+    return db.query(Incident).order_by(Incident.timestamp.desc(), Incident.id.desc()).limit(20).all()

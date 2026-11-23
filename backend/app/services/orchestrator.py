@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from app.ml.generator import SyntheticDataGenerator
 from app.ml.feature_pipeline import FeatureEngineeringPipeline
 from app.ml.models import AnomalyDetectionEngine
-from app.ml.explainer import ModelExplainer
+from app.ml.explainer import ModelExplainer, RiskScoreExplainer
 from app.ml.game_engine import AdaptiveStackelbergGameEngine
 from app.models.models import ThreatAnalysisRecord, Alert, Incident, ResearchInteraction
 from app.services.audit import append_audit_record, append_lock, verify_audit_chain
@@ -25,11 +25,16 @@ class SentinelOrchestrator:
         self.ml_engine = AnomalyDetectionEngine()
         self.game_engine = AdaptiveStackelbergGameEngine()
 
-        # Bootstrap training
+        # Bootstrap training on the BENIGN rows of the synthetic baseline only.
+        # Fitting on all rows (as earlier versions did) taught the One-Class SVM
+        # that the dense synthetic-attack cluster was normal: it gave a blatant
+        # exfiltration session 0/30 points. One-class models must learn "normal".
         df_train = self.generator.generate_baseline_dataset(n_samples=1000)
+        df_train = df_train[df_train.label == 0].reset_index(drop=True)
         X_train_scaled = self.feature_pipeline.fit_transform(df_train)
         self.ml_engine.train(X_train_scaled)
         self.explainer = ModelExplainer(self.ml_engine.iforest, X_train_scaled)
+        self.risk_explainer = RiskScoreExplainer(self.ml_engine, X_train_scaled)
 
     def analyze_event(self, user_id: int, raw_features: dict, db: Session) -> dict:
         # 1. Feature Transformation & 2. ML Detection
@@ -43,6 +48,8 @@ class SentinelOrchestrator:
             raw_features
         )
         shap_scores = self.explainer.explain(scaled_sample)
+        # Full additive breakdown of the score: IF + OCSVM Shapley points + rule points.
+        breakdown = self.risk_explainer.explain(scaled_sample, raw_features, risk_score)
 
         # =====================================================================
         # PART 2 RESEARCH: STEP 8 (THE FEEDBACK LOOP)
@@ -81,6 +88,7 @@ class SentinelOrchestrator:
             ocsvm_score=eval_results["ocsvm_score"],
             risk_score=risk_score,
             shap_attributions=shap_scores,
+            score_breakdown=breakdown,
             game_action=action,
             attacker_state_probs=state_probs,
             adaptation_score=aas,
@@ -104,7 +112,9 @@ class SentinelOrchestrator:
                 user_id=user_id,
                 severity="CRITICAL" if risk_score > 80 else "HIGH" if risk_score > 65 else "MEDIUM",
                 risk_score=risk_score,
-                triggering_factors=shap_scores,
+                # Risk points per feature (sums with the baseline to the score).
+                triggering_factors=breakdown["by_feature"],
+                score_breakdown=breakdown,
                 recommended_action=action
             )
             db.add(alert)
@@ -140,6 +150,7 @@ class SentinelOrchestrator:
             "ocsvm_anomaly": eval_results["ocsvm_anomaly"],
             "game_action": action,
             "top_explanations": shap_scores,
+            "score_breakdown": breakdown,
             "adaptive_metrics": {
                 "attacker_state": dominant_state,
                 "state_probabilities": state_probs,

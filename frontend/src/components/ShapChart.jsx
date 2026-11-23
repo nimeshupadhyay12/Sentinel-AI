@@ -48,11 +48,11 @@ export default function ShapChart({ attributions }) {
       <div className="flex justify-center space-x-6 text-[10px] font-mono text-gray-400 pt-2 border-t border-sentinel-800">
         <span className="flex items-center space-x-1.5">
           <span className="h-2 w-2 rounded-full bg-red-500"></span>
-          <span>Malicious Insider Driver (Pushes toward Anomaly)</span>
+          <span>Shorter isolation path (more anomalous)</span>
         </span>
         <span className="flex items-center space-x-1.5">
           <span className="h-2 w-2 rounded-full bg-emerald-500"></span>
-          <span>Normal Baseline Driver (Pushes toward Inlier)</span>
+          <span>Longer isolation path (more normal)</span>
         </span>
       </div>
     </div>

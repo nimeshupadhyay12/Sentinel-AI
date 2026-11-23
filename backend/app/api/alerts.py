@@ -8,4 +8,4 @@ router = APIRouter(prefix="/api/alerts", tags=["Alerts"])
 
 @router.get("/")
 def get_alerts(db: Session = Depends(get_db), current_user=Depends(require_role(["Admin", "Analyst"]))):
-    return db.query(Alert).order_by(Alert.timestamp.desc()).limit(20).all()
+    return db.query(Alert).order_by(Alert.timestamp.desc(), Alert.id.desc()).limit(20).all()

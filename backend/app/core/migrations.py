@@ -10,7 +10,9 @@ ADDED_COLUMNS = {
         'adaptation_score': 'FLOAT DEFAULT 0',
         'response_effectiveness': 'FLOAT DEFAULT 0',
         'attacker_state': "VARCHAR DEFAULT 'UNKNOWN'",
+        'score_breakdown': 'JSON',
     },
+    'alerts': {'score_breakdown': 'JSON'},
     'secure_audit_logs': {'signer_key_id': 'VARCHAR(32)'},
 }
 

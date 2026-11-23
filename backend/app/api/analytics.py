@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.security import require_role
@@ -17,11 +18,10 @@ def get_dashboard_stats(db: Session = Depends(get_db), current_user=Depends(requ
     total_alerts = db.query(Alert).count()
     total_incidents = db.query(Incident).count()
 
-    latest_assessment = db.query(ThreatAnalysisRecord).order_by(ThreatAnalysisRecord.timestamp.desc()).first()
-    avg_risk = 0.0
-    records = db.query(ThreatAnalysisRecord).all()
-    if records:
-        avg_risk = round(sum(r.risk_score for r in records) / len(records), 2)
+    latest_assessment = (db.query(ThreatAnalysisRecord)
+                         .order_by(ThreatAnalysisRecord.timestamp.desc(), ThreatAnalysisRecord.id.desc()).first())
+    # Aggregate in the database instead of loading every record into memory.
+    avg_risk = round(float(db.query(func.avg(ThreatAnalysisRecord.risk_score)).scalar() or 0.0), 2)
 
     interaction = (db.query(ResearchInteraction)
                    .filter(ResearchInteraction.threat_record_id == latest_assessment.id).first()
@@ -38,6 +38,7 @@ def get_dashboard_stats(db: Session = Depends(get_db), current_user=Depends(requ
             "risk_score": latest_assessment.risk_score if latest_assessment else 0,
             "action": latest_assessment.game_action if latest_assessment else "ALLOW",
             "shap_attributions": latest_assessment.shap_attributions if latest_assessment else {},
+            "score_breakdown": latest_assessment.score_breakdown if latest_assessment else None,
             "aas": latest_assessment.adaptation_score if latest_assessment else 0,
             "res": latest_assessment.response_effectiveness if latest_assessment else 0,
             "res_available": interaction.res_available if interaction else False,

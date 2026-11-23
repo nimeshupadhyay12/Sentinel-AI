@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import client from '../api/client';
 import StatCard from '../components/StatCard';
 import ShapChart from '../components/ShapChart';
+import ScoreBreakdown from '../components/ScoreBreakdown';
 import DecisionPanel from '../components/DecisionPanel';
 import { Users, Activity, AlertTriangle, ShieldAlert, Cpu, RefreshCw } from 'lucide-react';
 
@@ -38,7 +39,7 @@ export default function Dashboard() {
     return (
       <div className="min-h-[80vh] flex flex-col items-center justify-center space-y-3 font-mono text-xs text-gray-500">
         <RefreshCw className="w-6 h-6 animate-spin text-blue-500" />
-        <span>CONNECTING TO POSTGRESQL & RASRO ORCHESTRATOR...</span>
+        <span>CONNECTING TO SENTINEL API...</span>
       </div>
     );
   }
@@ -91,17 +92,23 @@ export default function Dashboard() {
             <div className="flex justify-between items-center mb-4">
               <div>
                 <h3 className="text-xs font-mono font-bold uppercase tracking-wider text-gray-300">
-                  EXPLAINABLE AI ENGINE: SHAP FEATURE ATTRIBUTION
+                  EXPLAINABLE AI: RISK SCORE BREAKDOWN
                 </h3>
                 <p className="text-[11px] text-gray-500 font-mono">
-                  Identifies precise behavioural features driving Isolation Forest / One-Class SVM anomaly evaluations.
+                  Every point of the latest score: Isolation Forest and One-Class SVM points (exact Shapley values) plus rule points.
                 </p>
               </div>
               <span className="text-[10px] font-mono text-cyan-400 bg-cyan-950/40 border border-cyan-800 px-2 py-0.5 rounded">
-                TREE SHAP
+                SHAPLEY
               </span>
             </div>
-            <ShapChart attributions={stats?.latest_assessment?.shap_attributions} />
+            <ScoreBreakdown breakdown={stats?.latest_assessment?.score_breakdown} />
+            <details className="mt-4">
+              <summary className="text-[11px] font-mono text-gray-500 cursor-pointer">
+                Isolation Forest TreeSHAP (model space: path length, negative = more anomalous)
+              </summary>
+              <ShapChart attributions={stats?.latest_assessment?.shap_attributions} />
+            </details>
           </div>
 
           {/* Active Incidents Table */}

@@ -48,6 +48,7 @@ class ThreatAnalysisRecord(Base):
     adaptation_score = Column(Float, default=0.0)          # Step 4: AAS
     response_effectiveness = Column(Float, default=0.0)    # Step 5: RES
     attacker_state = Column(String, default="UNKNOWN")     # Dominant State
+    score_breakdown = Column(JSON, nullable=True)          # IF/OCSVM/rule points per feature
     # ------------------------------------
 
     game_action = Column(String, nullable=False)
@@ -60,6 +61,7 @@ class Alert(Base):
     severity = Column(String, nullable=False)  # LOW, MEDIUM, HIGH, CRITICAL
     risk_score = Column(Float, nullable=False)
     triggering_factors = Column(JSON, nullable=False)
+    score_breakdown = Column(JSON, nullable=True)
     recommended_action = Column(String, nullable=False)
     is_resolved = Column(Boolean, default=False)
 
