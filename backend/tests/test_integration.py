@@ -18,8 +18,11 @@ def test_existing_schema_migration_retains_rows():
     with legacy.begin() as conn:
         conn.execute(text('CREATE TABLE threat_analysis_records (id INTEGER PRIMARY KEY, user_id INTEGER, raw_features JSON)'))
         conn.execute(text("INSERT INTO threat_analysis_records VALUES (1,1,'{}')"))
+        conn.execute(text('CREATE TABLE secure_audit_logs (id INTEGER PRIMARY KEY, timestamp DATETIME, '
+                          'event_payload JSON, cryptographic_hash VARCHAR(256), previous_hash VARCHAR(256))'))
     upgrade_schema(legacy); upgrade_schema(legacy)
     assert {'attacker_state_probs','adaptation_score','response_effectiveness','attacker_state'} <= {c['name'] for c in inspect(legacy).get_columns('threat_analysis_records')}
+    assert 'signer_key_id' in {c['name'] for c in inspect(legacy).get_columns('secure_audit_logs')}
     with legacy.connect() as conn:
         assert conn.execute(text('SELECT COUNT(*) FROM threat_analysis_records')).scalar() == 1
     legacy.dispose()

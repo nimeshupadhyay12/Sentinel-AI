@@ -1,15 +1,14 @@
+from datetime import datetime, timezone
+
 from sqlalchemy.orm import Session
-from datetime import datetime
 
 from app.ml.generator import SyntheticDataGenerator
 from app.ml.feature_pipeline import FeatureEngineeringPipeline
 from app.ml.models import AnomalyDetectionEngine
 from app.ml.explainer import ModelExplainer
 from app.ml.game_engine import AdaptiveStackelbergGameEngine
-from app.models.models import ThreatAnalysisRecord, Alert, Incident, SecureAuditLog, ResearchInteraction
-
-# Import Stage 8 ML-DSA Engine
-from app.core.pqc_dsa import dsa_engine
+from app.models.models import ThreatAnalysisRecord, Alert, Incident, ResearchInteraction
+from app.services.audit import append_audit_record, append_lock, verify_audit_chain
 
 class SentinelOrchestrator:
     _instance = None
@@ -121,39 +120,18 @@ class SentinelOrchestrator:
             )
             db.add(incident)
 
-        # =====================================================================
-        # STAGE 8: TAMPER-EVIDENT CRYPTOGRAPHIC AUDIT LOGGING
-        # =====================================================================
-        try:
-            last_log = db.query(SecureAuditLog).order_by(SecureAuditLog.id.desc()).first()
-            previous_signature = last_log.cryptographic_hash if last_log else dsa_engine.genesis_hash
-
-            event_payload = {
+        # Tamper-evident audit record (Ed25519-signed, chained). Failing to seal
+        # the record fails the request: a decision must not go unaudited.
+        with append_lock:
+            append_audit_record(db, {
                 "user_id": user_id,
                 "risk_score": float(risk_score),
                 "game_action": action,
                 "attacker_state": dominant_state,
                 "adaptation_score": float(aas),
-                "timestamp": str(datetime.utcnow())
-            }
-
-            new_signature = dsa_engine.sign_incident(
-                incident_data=event_payload,
-                previous_signature=previous_signature
-            )
-
-            secure_log = SecureAuditLog(
-                event_payload=event_payload,
-                cryptographic_hash=new_signature,
-                previous_hash=previous_signature
-            )
-            db.add(secure_log)
-
-        except Exception as e:
-            print(f"[STAGE 8 ERROR] Failed to seal ledger: {e}")
-        # =====================================================================
-
-        db.commit()
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            })
+            db.commit()
 
         return {
             "user_id": user_id,
@@ -179,36 +157,9 @@ class SentinelOrchestrator:
             }
         }
 
-    # =========================================================================
-    # AUDIT CHAIN VERIFICATION (Added for Dr. Begum's Point 1)
-    # =========================================================================
     def verify_audit_chain(self, db: Session) -> dict:
-        """
-        Walks the entire cryptographic audit log chain and verifies linkage.
-        Returns VERIFIED if intact, or flags the exact compromised record if tampered.
-        """
-        logs = db.query(SecureAuditLog).order_by(SecureAuditLog.id.asc()).all()
-        if not logs:
-            return {"status": "EMPTY", "is_valid": True, "message": "No audit records found."}
+        """Kept for compatibility; see app.services.audit.verify_audit_chain."""
+        return verify_audit_chain(db)
 
-        for i in range(1, len(logs)):
-            prev_log = logs[i - 1]
-            curr_log = logs[i]
-
-            # Verify that current record correctly points to previous record's hash
-            if curr_log.previous_hash != prev_log.cryptographic_hash:
-                return {
-                    "status": "COMPROMISED",
-                    "is_valid": False,
-                    "tampered_at_id": curr_log.id,
-                    "message": f"Tampering detected at Log ID #{curr_log.id}: previous hash mismatch."
-                }
-
-        return {
-            "status": "VERIFIED",
-            "is_valid": True,
-            "total_records_verified": len(logs),
-            "message": "Cryptographic audit chain is fully intact and verified."
-        }
 
 orchestrator = SentinelOrchestrator()

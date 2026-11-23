@@ -10,7 +10,7 @@ from app.core.database import engine, Base, SessionLocal
 from app.core.config import settings
 from app.core.security import get_password_hash
 from app.models.models import User, ActivityLog
-from app.api import auth, users, activities, analytics, alerts, incidents, experiments, research_results
+from app.api import auth, users, activities, analytics, alerts, incidents, experiments, research_results, audit
 from app.core.migrations import upgrade_schema
 
 
@@ -133,6 +133,7 @@ app.include_router(alerts.router)
 app.include_router(incidents.router)
 app.include_router(experiments.router)
 app.include_router(research_results.router)
+app.include_router(audit.router)
 
 
 @app.get("/health")
