@@ -130,7 +130,7 @@ All endpoints except `/health`, login, refresh, logout and the optional register
 | POST | `/api/auth/login` | Anyone. Rate limited: account lockout plus per-IP budget |
 | POST | `/api/auth/refresh` | Holder of the httpOnly refresh cookie. Rotated on every use; reuse revokes the whole family |
 | POST | `/api/auth/logout` | Anyone. Denylists the access token's `jti` and revokes the refresh token |
-| POST | `/api/auth/register` | Anyone, only if `ALLOW_SELF_REGISTRATION=true`. Always creates a `User`; same 202 reply whether or not the account exists |
+| POST | `/api/auth/register` | Anyone, only if `ALLOW_SELF_REGISTRATION=true` (otherwise 403). Always creates a `User`; same 202 reply whether or not the account exists |
 | GET | `/api/auth/me` | Any signed-in user |
 | POST | `/api/activities/log` | Any signed-in user (records and scores their own event) |
 | GET | `/api/activities/recent` | User: own activity only. Analyst, Admin: everyone |

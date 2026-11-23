@@ -74,8 +74,8 @@ class RiskScoreExplainer:
         self.engine = engine
         self.d = training_scaled.shape[1]
         # Background = training rows that BOTH models consider normal, so the
-        # baseline means "a typical normal session", not an average that
-        # includes the synthetic attacks present in the training set.
+        # baseline means "a typical normal session". Training data is benign-only,
+        # but this filter also drops the few benign outliers each model rejects.
         inliers = training_scaled[(engine.iforest.predict(training_scaled) == 1)
                                   & (engine.ocsvm.predict(training_scaled) == 1)]
         pool = inliers if len(inliers) >= n_background else training_scaled
