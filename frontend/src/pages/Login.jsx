@@ -15,11 +15,11 @@ export default function Login({ onLoginSuccess }) {
       formData.append('password', password);
 
       const res = await client.post('/api/auth/login', formData);
-      localStorage.setItem('sentinel_token', res.data.access_token);
-      localStorage.setItem('sentinel_role', res.data.role);
-      onLoginSuccess(res.data.role);
+      onLoginSuccess(res.data);
     } catch (err) {
-      setError('Invalid username or password.');
+      setError(err.response?.status === 429
+        ? 'Too many login attempts. Please wait and try again.'
+        : 'Invalid username or password.');
     }
   };
 

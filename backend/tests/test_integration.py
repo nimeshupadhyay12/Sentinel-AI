@@ -1,33 +1,16 @@
 """Exercise real auth, migrated storage, dashboard, simulations and artifacts.
 
-Default SQLite is isolated in a temp directory. Set SENTINEL_TEST_DATABASE_URL to
-an explicitly disposable PostgreSQL database for the same suite.
+Environment and database isolation are configured in conftest.py.
 """
 import os
-import tempfile
-from pathlib import Path
+
 import pytest
 from sqlalchemy import create_engine, text, inspect
-from fastapi.testclient import TestClient
 
-TEMP = tempfile.TemporaryDirectory(prefix='sentinel-tests-')
-os.environ['DATABASE_URL'] = os.environ.get('SENTINEL_TEST_DATABASE_URL',f'sqlite:///{TEMP.name}/test.db')
-os.environ['SECRET_KEY'] = 'isolated-integration-test-secret-0123456789'
-os.environ['SENTINEL_BOOTSTRAP_ADMIN_PASSWORD'] = 'TestOnly-Admin-Password-2026!'
-os.environ['SENTINEL_BOOTSTRAP_ANALYST_PASSWORD'] = 'TestOnly-Analyst-Password-2026!'
-os.environ['SENTINEL_BOOTSTRAP_USER_PASSWORD'] = 'TestOnly-User-Password-2026!'
-from app.main import app
+from conftest import TEMP, login
 from app.core.database import engine, SessionLocal
 from app.core.migrations import upgrade_schema
-from app.models.models import ResearchInteraction, ThreatAnalysisRecord
-
-
-@pytest.fixture(scope='module', autouse=True)
-def close_test_database():
-    yield
-    # Release pooled SQLite connections before TemporaryDirectory cleanup on Windows.
-    engine.dispose()
-    TEMP.cleanup()
+from app.models.models import ResearchInteraction
 
 
 def test_existing_schema_migration_retains_rows():
@@ -42,52 +25,57 @@ def test_existing_schema_migration_retains_rows():
     legacy.dispose()
 
 
-def test_complete_dashboard_flow():
-    with TestClient(app) as client:
-        assert client.get('/health').status_code == 200
-        assert client.get('/api/research/results').status_code == 401
-        assert client.post('/api/experiments/run-adaptive-ablation').status_code == 401
-        login = client.post('/api/auth/login',data={'username':'admin','password':'TestOnly-Admin-Password-2026!'})
-        assert login.status_code == 200,login.text
-        headers = {'Authorization':f"Bearer {login.json()['access_token']}"}
-        registration = client.post('/api/auth/register', json={
-            'username': 'unprivileged-test-user',
-            'email': 'unprivileged@example.com',
-            'password': 'TestOnly-Registration-Password-2026!',
-            'role': 'Admin',
-        })
-        assert registration.status_code == 200
-        assert registration.json()['role'] == 'User'
-        vector = dict(login_hour=17.,files_accessed=33.,sensitive_files_accessed=3.,bytes_transferred_mb=175.,failed_logins=1.,privilege_level=1.,session_duration_min=123.)
-        response = client.post('/api/activities/analyze',json=vector,headers=headers)
-        assert response.status_code == 200,response.text
-        with SessionLocal() as db:
-            stored = db.query(ResearchInteraction).order_by(ResearchInteraction.id.desc()).first()
-            assert stored.current_behaviour == vector
-        invalid = dict(vector,login_hour=25)
-        assert client.post('/api/activities/analyze',json=invalid,headers=headers).status_code == 422
-        response = client.post('/api/analytics/simulate-threat',json={'user_id':3,'scenario':'ADAPTIVE_EVASION','iterations':8,'seed':42},headers=headers)
-        assert response.status_code == 200,response.text
-        turns = response.json()['executions']
-        assert len(turns)==8
-        assert any(t['adaptive_metrics']['adaptation_score_aas']>0 for t in turns[1:])
-        for before,after in zip(turns,turns[1:]):
-            assert after['adaptive_metrics']['previous_defence']==before['game_action']
-        with SessionLocal() as db:
-            interactions = db.query(ResearchInteraction).filter(ResearchInteraction.user_id==3).order_by(ResearchInteraction.id.desc()).limit(8).all()[::-1]
-            for before,after in zip(interactions,interactions[1:]):
-                assert after.previous_behaviour==before.current_behaviour
-        stats = client.get('/api/analytics/dashboard-stats',headers=headers)
-        assert stats.status_code==200 and stats.json()['latest_assessment']['res_available']
-        experiment = client.post('/api/experiments/run-adaptive-ablation?user_id=2',headers=headers)
-        assert experiment.status_code==200,experiment.text
-        assert len(experiment.json()['time_series_data'])==8
-        results = client.get('/api/research/results',headers=headers)
-        assert results.status_code==200,results.text
-        assert len(results.json()['detection'])==6
-        assert client.get('/api/research/files/research-results.png',headers=headers).headers['content-type']=='image/png'
-        assert client.get('/api/research/files/not-allowed.txt',headers=headers).status_code==404
-        assert client.get('/').status_code==200
+def test_complete_dashboard_flow(client):
+    assert client.get('/health').status_code == 200
+    assert client.get('/api/research/results').status_code == 401
+    assert client.post('/api/experiments/run-adaptive-ablation').status_code == 401
+    headers = login(client, 'admin')
+    escalation = client.post('/api/auth/register', json={
+        'username': 'unprivileged-test-user',
+        'email': 'unprivileged@example.com',
+        'password': 'TestOnly-Registration-Password-2026!',
+        'role': 'Admin',
+    })
+    assert escalation.status_code == 422  # unknown fields such as "role" are rejected
+    registration = client.post('/api/auth/register', json={
+        'username': 'unprivileged-test-user',
+        'email': 'unprivileged@example.com',
+        'password': 'TestOnly-Registration-Password-2026!',
+    })
+    assert registration.status_code == 202
+    registered = next(u for u in client.get('/api/users/', headers=headers).json()
+                      if u['username'] == 'unprivileged-test-user')
+    assert registered['role'] == 'User'  # self-registration never grants privilege
+    vector = dict(login_hour=17.,files_accessed=33.,sensitive_files_accessed=3.,bytes_transferred_mb=175.,failed_logins=1.,privilege_level=1.,session_duration_min=123.)
+    response = client.post('/api/activities/analyze',json=vector,headers=headers)
+    assert response.status_code == 200,response.text
+    with SessionLocal() as db:
+        stored = db.query(ResearchInteraction).order_by(ResearchInteraction.id.desc()).first()
+        assert stored.current_behaviour == vector
+    invalid = dict(vector,login_hour=25)
+    assert client.post('/api/activities/analyze',json=invalid,headers=headers).status_code == 422
+    response = client.post('/api/analytics/simulate-threat',json={'user_id':3,'scenario':'ADAPTIVE_EVASION','iterations':8,'seed':42},headers=headers)
+    assert response.status_code == 200,response.text
+    turns = response.json()['executions']
+    assert len(turns)==8
+    assert any(t['adaptive_metrics']['adaptation_score_aas']>0 for t in turns[1:])
+    for before,after in zip(turns,turns[1:]):
+        assert after['adaptive_metrics']['previous_defence']==before['game_action']
+    with SessionLocal() as db:
+        interactions = db.query(ResearchInteraction).filter(ResearchInteraction.user_id==3).order_by(ResearchInteraction.id.desc()).limit(8).all()[::-1]
+        for before,after in zip(interactions,interactions[1:]):
+            assert after.previous_behaviour==before.current_behaviour
+    stats = client.get('/api/analytics/dashboard-stats',headers=headers)
+    assert stats.status_code==200 and stats.json()['latest_assessment']['res_available']
+    experiment = client.post('/api/experiments/run-adaptive-ablation?user_id=2',headers=headers)
+    assert experiment.status_code==200,experiment.text
+    assert len(experiment.json()['time_series_data'])==8
+    results = client.get('/api/research/results',headers=headers)
+    assert results.status_code==200,results.text
+    assert len(results.json()['detection'])==6
+    assert client.get('/api/research/files/research-results.png',headers=headers).headers['content-type']=='image/png'
+    assert client.get('/api/research/files/not-allowed.txt',headers=headers).status_code==404
+    assert client.get('/').status_code==200
 
 
 def test_postgresql_legacy_upgrade():
@@ -112,36 +100,45 @@ def test_postgresql_legacy_upgrade():
             conn.execute(text(f'DROP SCHEMA {schema} CASCADE'))
 
 
-def test_registration_rejects_duplicate_email():
-    with TestClient(app) as client:
-        first = client.post('/api/auth/register', json={
-            'username': 'duplicate-email-one',
-            'email': 'duplicate-email@example.com',
-            'password': 'TestOnly-Duplicate-Pass-2026!',
-        })
-        assert first.status_code == 200, first.text
+def test_registration_response_does_not_reveal_existing_accounts(client):
+    fresh = client.post('/api/auth/register', json={
+        'username': 'duplicate-email-one',
+        'email': 'duplicate-email@example.com',
+        'password': 'TestOnly-Duplicate-Pass-2026!',
+    })
+    assert fresh.status_code == 202, fresh.text
+    duplicate_email = client.post('/api/auth/register', json={
+        'username': 'duplicate-email-two',
+        'email': 'duplicate-email@example.com',
+        'password': 'TestOnly-Duplicate-Pass-2026!',
+    })
+    duplicate_user = client.post('/api/auth/register', json={
+        'username': 'duplicate-email-one',
+        'email': 'another-address@example.com',
+        'password': 'TestOnly-Duplicate-Pass-2026!',
+    })
+    # Same status and body for new, duplicate-email and duplicate-username sign-ups.
+    for response in (duplicate_email, duplicate_user):
+        assert response.status_code == fresh.status_code
+        assert response.json() == fresh.json()
+    # ...and the duplicate really was not created.
+    admin = login(client, 'admin')
+    usernames = [u['username'] for u in client.get('/api/users/', headers=admin).json()]
+    assert 'duplicate-email-two' not in usernames
+    assert usernames.count('duplicate-email-one') == 1
 
-        second = client.post('/api/auth/register', json={
-            'username': 'duplicate-email-two',
-            'email': 'duplicate-email@example.com',
-            'password': 'TestOnly-Duplicate-Pass-2026!',
-        })
-        assert second.status_code == 400
-        assert 'email' in second.json()['detail'].lower()
 
+def test_registration_rejects_weak_credentials(client):
+    short_password = client.post('/api/auth/register', json={
+        'username': 'short-password-user',
+        'email': 'short-password@example.com',
+        'password': 'short',
+    })
+    assert short_password.status_code == 422
 
-def test_registration_rejects_weak_credentials():
-    with TestClient(app) as client:
-        short_password = client.post('/api/auth/register', json={
-            'username': 'short-password-user',
-            'email': 'short-password@example.com',
-            'password': 'short',
-        })
-        assert short_password.status_code == 422
-
-        short_username = client.post('/api/auth/register', json={
-            'username': 'ab',
-            'email': 'short-username@example.com',
-            'password': 'TestOnly-Registration-Pass-2026!',
-        })
-        assert short_username.status_code == 422
+    short_username = client.post('/api/auth/register', json={
+        'username': 'ab',
+        'email': 'short-username@example.com',
+        'password': 'TestOnly-Registration-Pass-2026!',
+    })
+    assert short_username.status_code == 422

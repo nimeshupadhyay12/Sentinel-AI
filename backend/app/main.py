@@ -1,9 +1,11 @@
-import os
+import logging
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, HTTPException
+from pathlib import Path
+
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
 from app.core.database import engine, Base, SessionLocal
 from app.core.config import settings
 from app.core.security import get_password_hash
@@ -75,15 +77,52 @@ async def lifespan(app: FastAPI):
     bootstrap_defaults()
     yield
 
-app = FastAPI(title="SentinelAI Enterprise Platform", version="0.6.0", lifespan=lifespan)
+APP_VERSION = "0.7.0"
+logger = logging.getLogger("sentinel")
+
+app = FastAPI(title="SentinelAI Enterprise Platform", version=APP_VERSION, lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.CORS_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PATCH", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
 )
+
+# The SPA is self-hosted (no inline scripts, no CDNs), so a strict policy works.
+# Recharts sets inline style attributes, hence style-src 'unsafe-inline'.
+SPA_CSP = ("default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; "
+           "img-src 'self' data: blob:; connect-src 'self'; object-src 'none'; "
+           "base-uri 'self'; form-action 'self'; frame-ancestors 'none'")
+# Swagger UI / ReDoc load their bundles from a CDN; keep them working but framed-off.
+DOCS_CSP = ("default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+            "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com; "
+            "font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https://fastapi.tiangolo.com "
+            "https://cdn.redoc.ly; worker-src 'self' blob:; frame-ancestors 'none'")
+
+
+@app.middleware("http")
+async def security_headers(request: Request, call_next):
+    response = await call_next(request)
+    path = request.url.path
+    response.headers.setdefault(
+        "Content-Security-Policy", DOCS_CSP if path in ("/docs", "/redoc") else SPA_CSP)
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault("Referrer-Policy", "no-referrer")
+    response.headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+    if path.startswith("/api/"):
+        response.headers.setdefault("Cache-Control", "no-store")
+    return response
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception(request: Request, exc: Exception):
+    # Log server-side with the stack trace; never echo internals to the client.
+    logger.exception("Unhandled error on %s %s", request.method, request.url.path)
+    return JSONResponse(status_code=500, content={"detail": "Internal server error"})
+
 
 # API routes
 app.include_router(auth.router)
@@ -95,33 +134,59 @@ app.include_router(incidents.router)
 app.include_router(experiments.router)
 app.include_router(research_results.router)
 
+
 @app.get("/health")
 def health():
-    return {"status": "healthy", "service": "sentinel-ai", "platform": "SentinelAI Enterprise Platform", "version": "0.6.0"}
+    return {"status": "healthy", "service": "sentinel-ai",
+            "platform": "SentinelAI Enterprise Platform", "version": APP_VERSION}
 
-# Frontend SPA distribution discovery
-base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-possible_dist_paths = [
-    os.path.join(base_dir, "frontend", "dist"),
-    os.path.abspath("frontend/dist"),
-    os.path.abspath("../frontend/dist"),
-    "/app/frontend/dist"
-]
-FRONTEND_DIST = next((p for p in possible_dist_paths if os.path.exists(p) and os.path.exists(os.path.join(p, "index.html"))), None)
+
+def resolve_frontend_file(dist: Path, requested: str) -> Path | None:
+    """Map a URL path to a file strictly inside the built SPA directory.
+
+    Returns None for anything that escapes ``dist`` (``..``, encoded separators,
+    absolute or drive-qualified paths) or is not a regular file.
+    """
+    if not requested or "\x00" in requested:
+        return None
+    root = dist.resolve()
+    try:
+        candidate = (root / requested).resolve()
+    except (OSError, ValueError):
+        return None
+    if not candidate.is_relative_to(root) or not candidate.is_file():
+        return None
+    return candidate
+
+
+def find_frontend_dist() -> Path | None:
+    base_dir = Path(__file__).resolve().parents[2]
+    for candidate in (base_dir / "frontend" / "dist", Path("frontend/dist").resolve(),
+                      Path("../frontend/dist").resolve(), Path("/app/frontend/dist")):
+        if (candidate / "index.html").is_file():
+            return candidate
+    return None
+
+
+FRONTEND_DIST = find_frontend_dist()
+API_PREFIXES = ("api/", "docs", "redoc", "openapi.json", "health")
 
 if FRONTEND_DIST:
-    assets_dir = os.path.join(FRONTEND_DIST, "assets")
-    if os.path.exists(assets_dir):
+    assets_dir = FRONTEND_DIST / "assets"
+    if assets_dir.is_dir():
         app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
 
-    @app.get("/{full_path:path}")
+    @app.get("/{full_path:path}", include_in_schema=False)
     def serve_frontend_spa(full_path: str):
-        if full_path.startswith("api/") or full_path in ("health", "docs", "redoc", "openapi.json"):
+        if full_path.startswith(API_PREFIXES):
             raise HTTPException(status_code=404, detail="Endpoint not found")
-        file_path = os.path.join(FRONTEND_DIST, full_path)
-        if full_path and os.path.isfile(file_path):
+        file_path = resolve_frontend_file(FRONTEND_DIST, full_path)
+        if file_path is not None:
             return FileResponse(file_path)
-        return FileResponse(os.path.join(FRONTEND_DIST, "index.html"))
+        if "/" in full_path.strip("/") and "." in full_path.rsplit("/", 1)[-1]:
+            # A missing asset-like path should 404 rather than return index.html.
+            raise HTTPException(status_code=404, detail="Not found")
+        return FileResponse(FRONTEND_DIST / "index.html")
 else:
     @app.get("/")
     def root():

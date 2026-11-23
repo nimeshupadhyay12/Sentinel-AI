@@ -1,7 +1,7 @@
 import React from 'react';
 import { ShieldAlert, Activity, Cpu, Database, LogOut } from 'lucide-react';
 
-export default function Navbar({ activeTab, setActiveTab, onLogout, userRole }) {
+export default function Navbar({ activeTab, setActiveTab, onLogout, userRole, privileged }) {
   return (
     <header className="sticky top-0 z-50 border-b border-sentinel-800 bg-sentinel-950/80 backdrop-blur-md px-6 py-3">
       <div className="max-w-7xl mx-auto flex justify-between items-center">
@@ -28,6 +28,7 @@ export default function Navbar({ activeTab, setActiveTab, onLogout, userRole }) 
 
         {/* Center Tabs */}
         <nav className="flex space-x-1 bg-sentinel-900/90 border border-sentinel-800 p-1 rounded-lg">
+          {privileged && (<>
           <button
             onClick={() => setActiveTab('dashboard')}
             className={`flex items-center space-x-2 px-4 py-1.5 rounded-md text-xs font-semibold tracking-wide transition-all ${
@@ -52,6 +53,7 @@ export default function Navbar({ activeTab, setActiveTab, onLogout, userRole }) 
             <span>THREAT SIMULATOR</span>
           </button>
 
+          </>)}
           <button
             onClick={() => setActiveTab('activities')}
             className={`flex items-center space-x-2 px-4 py-1.5 rounded-md text-xs font-semibold tracking-wide transition-all ${
@@ -63,10 +65,12 @@ export default function Navbar({ activeTab, setActiveTab, onLogout, userRole }) 
             <Database className="w-3.5 h-3.5" />
             <span>AUDIT TELEMETRY</span>
           </button>
-          <button onClick={() => setActiveTab('research')}
-            className={`px-4 py-1.5 rounded-md text-xs font-semibold ${activeTab === 'research' ? 'bg-blue-600 text-white' : 'text-gray-400'}`}>
-            RESEARCH RESULTS
-          </button>
+          {privileged && (
+            <button onClick={() => setActiveTab('research')}
+              className={`px-4 py-1.5 rounded-md text-xs font-semibold ${activeTab === 'research' ? 'bg-blue-600 text-white' : 'text-gray-400'}`}>
+              RESEARCH RESULTS
+            </button>
+          )}
         </nav>
 
         {/* Right Info & Logout */}

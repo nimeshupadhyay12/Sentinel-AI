@@ -78,8 +78,11 @@ class Incident(Base):
     status = Column(String, default="OPEN")  # OPEN, INVESTIGATING, MITIGATED
 
 class SecureAuditLog(Base):
-    """
-    Stage 8: Cryptographically sealed ledger for all RASRO decisions.
+    """Ed25519-signed, chained audit record for each detector/response decision.
+
+    Column names are historical: ``cryptographic_hash`` holds this record's
+    base64 Ed25519 signature and ``previous_hash`` the previous record's
+    signature (the chain link). See app/services/audit.py.
     """
     __tablename__ = "secure_audit_logs"
     id = Column(Integer, primary_key=True, index=True)
@@ -87,6 +90,7 @@ class SecureAuditLog(Base):
     event_payload = Column(JSON, nullable=False)
     cryptographic_hash = Column(String(256), nullable=False)
     previous_hash = Column(String(256), nullable=False, default="GENESIS_BLOCK")
+    signer_key_id = Column(String(32), nullable=True)
 
 class ResearchInteraction(Base):
     """Immutable metric inputs captured at decision time; added as a new table.
@@ -108,3 +112,25 @@ class ResearchInteraction(Base):
     res_available = Column(Boolean, nullable=False)
     res_components = Column(JSON, nullable=False)
     game_details = Column(JSON, nullable=False)
+
+
+class RefreshToken(Base):
+    """Server-side record of an opaque refresh token (only its SHA-256 is stored).
+
+    Tokens rotate on every use. Presenting an already-rotated token is treated as
+    theft and revokes the user's whole token family.
+    """
+    __tablename__ = "refresh_tokens"
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    token_hash = Column(String(64), unique=True, nullable=False, index=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    expires_at = Column(DateTime, nullable=False)
+    revoked_at = Column(DateTime, nullable=True)
+
+
+class RevokedAccessToken(Base):
+    """Denylist of access-token IDs (jti) revoked before expiry, e.g. on logout."""
+    __tablename__ = "revoked_access_tokens"
+    jti = Column(String(64), primary_key=True)
+    expires_at = Column(DateTime, nullable=False, index=True)

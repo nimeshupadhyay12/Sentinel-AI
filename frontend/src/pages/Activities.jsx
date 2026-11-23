@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import client from '../api/client';
 
-export default function Activities() {
+export default function Activities({ privileged = false }) {
   const [logs, setLogs] = useState([]);
 
   useEffect(() => {
@@ -13,7 +13,10 @@ export default function Activities() {
   return (
     <div className="p-8 space-y-6">
       <div className="border border-gray-800 rounded-lg p-6 bg-gray-900/50">
-        <h2 className="text-lg font-bold text-white mb-4">Audit Telemetry Records</h2>
+        <h2 className="text-lg font-bold text-white mb-1">Audit Telemetry Records</h2>
+        <p className="text-xs text-gray-500 mb-4">
+          {privileged ? 'All users (analyst/admin view).' : 'Your own activity only.'}
+        </p>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
             <thead>
