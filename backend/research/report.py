@@ -127,4 +127,4 @@ def render_results(output):
                'Seed variation measures training bootstrap and simulator randomness on one chronological split; it is not a population-level confidence interval.']
     lines += ['', 'Figures: `research-results.png` and `adaptive-metrics.png`.', '',
               '## Interpretation limits', ''] + [f'- {item}' for item in limits] + ['']
-    (output / 'research-report.md').write_text('\n'.join(lines))
+    (output / 'research-report.md').write_text('\n'.join(lines), encoding='utf-8')

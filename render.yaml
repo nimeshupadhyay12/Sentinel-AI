@@ -1,3 +1,20 @@
+# Render Blueprint: one Docker web service plus a managed PostgreSQL database.
+#
+# Without a database the app falls back to SQLite inside the container, and a
+# Render free web service has an ephemeral filesystem: every deploy or restart
+# would wipe users, alerts and the audit chain. DATABASE_URL below points the
+# app at the managed PostgreSQL instance instead.
+#
+# Note: Render's free PostgreSQL plan is time-limited (it expires after a trial
+# period unless upgraded). Check the current terms on render.com before relying
+# on it for anything beyond a demo.
+databases:
+  - name: sentinel-db
+    plan: free
+    region: oregon
+    databaseName: sentinel
+    user: sentinel
+
 services:
   - type: web
     name: sentinel-ai
@@ -8,8 +25,17 @@ services:
     envVars:
       - key: PORT
         value: 8000
+      - key: DATABASE_URL
+        fromDatabase:
+          name: sentinel-db
+          property: connectionString
       - key: SECRET_KEY
         generateValue: true
+      # Optional dedicated audit-signing seed (base64 of 32 random bytes). When
+      # unset, the key is derived from SECRET_KEY, so rotating SECRET_KEY makes
+      # older audit records report "unknown signing key".
+      - key: AUDIT_SIGNING_KEY
+        sync: false
       # Configure this secret in the Render dashboard before first deployment.
       - key: SENTINEL_BOOTSTRAP_ADMIN_PASSWORD
         sync: false

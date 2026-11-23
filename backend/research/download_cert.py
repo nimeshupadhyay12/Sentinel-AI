@@ -77,7 +77,7 @@ def download(target, workers=8):
         p.unlink()  # Remove only verified temporary download fragments.
     parts.rmdir()
     target.with_suffix(target.suffix + '.verified.json').write_text(json.dumps({
-        'url': URL, 'sha256': actual, 'bytes': SIZE, 'release': 'r4.2'}, indent=2))
+        'url': URL, 'sha256': actual, 'bytes': SIZE, 'release': 'r4.2'}, indent=2), encoding='utf-8')
     print('CERT r4.2 downloaded and SHA256 verified', flush=True)
 
 

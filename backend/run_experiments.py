@@ -69,7 +69,7 @@ def load_data(args):
     metadata_path = args.dataset.with_suffix('.metadata.json')
     if not metadata_path.exists():
         raise ValueError('Missing source metadata. Run research.preprocess_cert; do not relabel an unverified CSV as CERT.')
-    metadata = json.loads(metadata_path.read_text())
+    metadata = json.loads(metadata_path.read_text(encoding='utf-8'))
     if metadata.get('source') != 'CERT' or metadata.get('features_sha256') != digest(args.dataset):
         raise ValueError('Feature provenance/hash validation failed')
     frame = pd.read_csv(args.dataset, dtype={'user_id': str, 'date': str})
@@ -105,7 +105,7 @@ def run(args):
                     'Closed-loop stress tests use a separate synthetic detector and explicit simulated enforcement, not CERT counterfactuals.',
                     'Five seeds measure training/simulator variability on one temporal split, not confidence intervals across populations.',
                     'Ablations may worsen performance. No improvement is assumed.']}
-    (output/'manifest.json').write_text(json.dumps(clean_json(manifest), indent=2, allow_nan=False))
+    (output/'manifest.json').write_text(json.dumps(clean_json(manifest), indent=2, allow_nan=False), encoding='utf-8')
     detection, simulation, episodes, selection = [], [], [], []
     from research.enhanced import EnhancedResearchModels, validation_threshold
     model_class = EnhancedResearchModels if args.protocol == 'enhanced' else ResearchModels
@@ -146,7 +146,7 @@ def run(args):
             return demo_models.scores(pd.DataFrame([b]))['risk'][0]
         for variant in VARIANTS:
             episode_rows = []
-            with (output/f'closed-loop-{seed}-{VARIANTS.index(variant)}.jsonl').open('w') as trace_file:
+            with (output/f'closed-loop-{seed}-{VARIANTS.index(variant)}.jsonl').open('w', encoding='utf-8') as trace_file:
                 for episode in range(args.episodes):
                     episode_seed = seed*10000 + episode
                     summary, traces = run_episode(risk_function, variant, episode_seed, args.turns,
@@ -172,7 +172,7 @@ def run(args):
     from research.statistics import write_comparisons
     write_comparisons(output)
     manifest['completed_utc'] = datetime.now(timezone.utc).isoformat()
-    (output/'manifest.json').write_text(json.dumps(clean_json(manifest), indent=2, allow_nan=False))
+    (output/'manifest.json').write_text(json.dumps(clean_json(manifest), indent=2, allow_nan=False), encoding='utf-8')
     print('Completed:', output.resolve(), flush=True)
 
 

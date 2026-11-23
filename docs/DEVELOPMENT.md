@@ -369,12 +369,12 @@ From the repository root:
 
 ```powershell
 docker build -t sentinel-ai .
-docker run --rm -p 8000:8000 --env-file backend/.env sentinel-ai
+docker run --rm -p 8000:8000 --env-file backend/.env -v sentinel-data:/app/data sentinel-ai
 ```
 
-The container builds the Vite frontend and serves its production assets through FastAPI. Configure a persistent PostgreSQL database for deployments that require durable data. A container-local SQLite file should not be treated as persistent storage.
+The image builds the Vite frontend, serves it through FastAPI, and runs as the unprivileged `sentinel` user (UID 10001). Application code is read-only for that user; only `/app/data` is writable. Without `DATABASE_URL` the container uses SQLite at `/app/data/sentinelai.db`, so mount a volume there (as above) or the data disappears with the container. A `HEALTHCHECK` polls `/health`, and Uvicorn runs with `--proxy-headers` so the per-IP login throttle sees real client addresses behind a reverse proxy.
 
-The repository includes a Render blueprint (`render.yaml`). Review and configure the database, environment variables, persistent storage requirements, and deployment security before using it for anything beyond a demonstration.
+The Render blueprint (`render.yaml`) provisions a managed PostgreSQL database and passes its connection string as `DATABASE_URL`, because a Render web service filesystem is ephemeral (SQLite data would be lost on every deploy or restart). Render's free PostgreSQL plan is time-limited; check its current terms.
 
 ## Security and implementation limitations
 
@@ -383,8 +383,9 @@ The repository includes a Render blueprint (`render.yaml`). Review and configure
 - **Research prototype:** this code is not a hardened enterprise security product. Recommendations and simulated actions do not actually revoke operating-system sessions, block endpoints, or enforce access controls.
 - **Authentication:** configure a unique, high-entropy `SECRET_KEY`; use unique bootstrap passwords; protect the database; and review registration/role assignment before any public deployment.
 - **CORS and deployment:** restrict allowed origins to the actual frontend origins in any internet-facing deployment. Use HTTPS and secure infrastructure configuration.
-- **Cryptography demonstrations are not post-quantum implementations:** the current `pqc_kem.py` uses an AES-GCM demonstration flow with a process-local symmetric key; it does not implement NIST ML-KEM key encapsulation. The current `pqc_dsa.py` uses Ed25519 signatures; it does not implement NIST ML-DSA. Do not describe these modules as quantum-resistant or rely on them for production cryptographic protection.
-- **Audit signing:** the demonstration signing key is generated at process startup and is not a managed, persistent key lifecycle. It is not a production audit-signing architecture.
+- **No post-quantum cryptography:** `app/core/audit_signing.py` (formerly `pqc_dsa.py`) uses classical Ed25519 signatures, not NIST ML-DSA. `app/core/aesgcm_demo.py` (formerly `pqc_kem.py`) is an AES-256-GCM round-trip demo with a process-local key, not NIST ML-KEM, and is not used by the API. Do not describe either as quantum-resistant.
+- **Audit signing:** the Ed25519 key comes from `AUDIT_SIGNING_KEY` or is derived from `SECRET_KEY` with HKDF, so signatures survive restarts, and `GET /api/audit/verify` checks every link and signature. Anyone with the key (or `SECRET_KEY`) can re-sign a forged chain, and deleting the newest records cannot be detected without an external copy of the last signature. A production system would keep the key in a KMS/HSM and anchor the chain head externally.
+- **Login throttling is in-process:** lockout and per-IP counters live in memory, so they reset on restart and are per worker. Run one worker or move them to a shared store (e.g. Redis) or the reverse proxy. Per-account lockout can be abused to lock a known username out for the lockout window; this is the usual trade-off against password guessing.
 - **Synthetic application detector:** the interactive application's detector is bootstrapped from generated baseline data. It is not automatically the same model as the offline CERT research evaluation.
 - **Research artifacts:** install only trusted artifacts. Do not load untrusted serialized model files.
 - **Data handling:** use synthetic or appropriately authorised data. Do not commit credentials, private keys, personal data, database files, raw CERT archives, or generated model binaries.
@@ -411,4 +412,4 @@ Please do not include secrets, raw personal data, restricted datasets, or genera
 
 ## License
 
-No license file is currently included. Unless the repository owner adds a license, the source is not granted an open-source reuse license. Contact the repository owner before redistributing or reusing the code.
+Released under the [MIT License](../LICENSE).

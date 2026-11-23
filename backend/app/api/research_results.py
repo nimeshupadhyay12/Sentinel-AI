@@ -20,7 +20,7 @@ def read_rows(name):
     path = ROOT / name
     if not path.is_file():
         return []
-    with path.open() as stream:
+    with path.open(encoding='utf-8', newline='') as stream:
         return list(csv.DictReader(stream))
 
 
@@ -29,7 +29,7 @@ def results():
     if not (ROOT / 'detection-summary.csv').exists():
         raise HTTPException(404, 'Research results have not been installed')
     manifest = ROOT / 'manifest.json'
-    metadata = json.loads(manifest.read_text()) if manifest.exists() else {}
+    metadata = json.loads(manifest.read_text(encoding='utf-8')) if manifest.exists() else {}
     return {'detection': read_rows('detection-summary.csv'),
             'adaptive': read_rows('adaptive-summary.csv'),
             'comparisons': read_rows('paired-comparisons.csv'),

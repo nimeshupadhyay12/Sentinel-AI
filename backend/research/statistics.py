@@ -37,8 +37,8 @@ def write_comparisons(output):
         adjusted = np.maximum.accumulate([min(1.,result.loc[idx,'two_sided_sign_flip_p']*(len(order)-i)) for i,idx in enumerate(order)])
         result.loc[order,'holm_p'] = adjusted
     result.to_csv(output/'paired-comparisons.csv',index=False)
-    with (output/'research-report.md').open('a') as stream:
-        manifest = json.loads((output/'manifest.json').read_text())
+    with (output/'research-report.md').open('a', encoding='utf-8') as stream:
+        manifest = json.loads((output/'manifest.json').read_text(encoding='utf-8'))
         stream.write('\n## Evaluation protocol and paired uncertainty\n\n')
         stream.write(f"Protocol: {manifest.get('evaluation_mode','original')}. Thresholds: {manifest.get('threshold_selection','validation quantile')}.\n\n")
         stream.write('The enhanced protocol was developed after inspecting the original benchmark results. Its training/validation selection avoids direct test fitting, but this is an exploratory rerun on the same test period, not a fresh confirmatory holdout. The synthetic response simulator is unchanged; its repeated outcomes do not demonstrate an effect of the new CERT preprocessing.\n\n')

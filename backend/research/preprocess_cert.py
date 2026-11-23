@@ -129,7 +129,7 @@ def preprocess(archive, answers, output, chunksize=200000, modalities=MODALITIES
             'off_hours_events': 'Events before 08:00 or at/after 18:00; fixed research assumption.',
         },
     }
-    output.with_suffix('.metadata.json').write_text(json.dumps(metadata, indent=2))
+    output.with_suffix('.metadata.json').write_text(json.dumps(metadata, indent=2), encoding='utf-8')
     print(json.dumps({k: metadata[k] for k in ('rows', 'positive_user_days', 'users')}, indent=2), flush=True)
     return frame
 
